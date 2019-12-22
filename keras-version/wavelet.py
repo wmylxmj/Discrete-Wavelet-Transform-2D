@@ -18,9 +18,11 @@ from IPython.display import SVG
 from keras.utils import plot_model
 from keras import layers
 
-def dwt2d(x, wavelet='haar'):
+def dwt2d(x, nc=None, wavelet='haar'):
     # shape x: (b, h, w, c)
-    nc = int(x.shape.dims[3])
+    if nc == None:
+        nc = int(x.shape.dims[3])
+        pass
     # 小波波形
     w = pywt.Wavelet(wavelet)
     # 水平低频 垂直低频
@@ -49,14 +51,14 @@ def dwt2d(x, wavelet='haar'):
     # convert to 3d data
     x3d = Lambda(tf.expand_dims, arguments={'axis':1})(x)
     # 切开通道
-    x3d = Lambda(tf.split, arguments={'num_or_size_splits':int(x3d.shape.dims[4]), 'axis':4})(x3d)
+    x3d = Lambda(tf.split, arguments={'num_or_size_splits':nc, 'axis':4})(x3d)
     # 贴到维度一
     x3d = Lambda(tf.concat, arguments={'axis':1})([a for a in x3d])
     # 三维卷积
     y3d = Lambda(tf.nn.conv3d, arguments={'filter':kernel, 'padding':'VALID', \
                                           'strides':[1, 1, 2, 2, 1]})(x3d)
     # 切开维度一
-    y = Lambda(tf.split, arguments={'num_or_size_splits':int(y3d.shape.dims[1]), 'axis':1})(y3d)
+    y = Lambda(tf.split, arguments={'num_or_size_splits':nc, 'axis':1})(y3d)
     # 贴到通道维
     y = Lambda(tf.concat, arguments={'axis':4})([a for a in y])
     shape = (K.shape(y)[0], K.shape(y)[2], K.shape(y)[3], 4*nc)
@@ -73,9 +75,11 @@ def dwt2d(x, wavelet='haar'):
     outputs = Lambda(tf.concat, arguments={'axis':-1})(outputs)
     return outputs
 
-def idwt2d(x, wavelet='haar'):
+def idwt2d(x, nc=None, wavelet='haar'):
     # shape x: (b, h, w, c)
-    nc = int(x.shape.dims[3])
+    if nc == None:
+        nc = int(x.shape.dims[3])
+        pass
     # 小波波形
     w = pywt.Wavelet(wavelet)
     # 水平低频 垂直低频
@@ -128,14 +132,14 @@ def idwt2d(x, wavelet='haar'):
                                  s:2*(tf.shape(y)[2]-1)+np.shape(ll)[1]-s, :])(outputs)
     return outputs
 
-def wavedec2d(x, level=1, wavelet='haar'):
+def wavedec2d(x, nc=None, level=1, wavelet='haar'):
     if level == 0:
         return x
-    y = dwt2d(x, wavelet=wavelet)
+    y = dwt2d(x, nc=nc, wavelet=wavelet)
     hcA = tf.floordiv(tf.shape(y)[1], 2)
     wcA = tf.floordiv(tf.shape(y)[2], 2)
     cA = Lambda(lambda x: x[:, 0:hcA, 0:wcA, :])(y)
-    cA = wavedec2d(cA, level=level-1, wavelet=wavelet)
+    cA = wavedec2d(cA, nc=nc, level=level-1, wavelet=wavelet)
     cA = Lambda(lambda x: x[:, 0:hcA, 0:wcA, :])(cA)
     hcA = tf.shape(cA)[1]
     wcA = tf.shape(cA)[2]
